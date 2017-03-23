@@ -1,6 +1,5 @@
 import common._
 import barneshut.conctrees._
-import com.sun.xml.internal.bind.v2.TODO
 
 package object barneshut {
 
@@ -44,6 +43,10 @@ package object barneshut {
     def total: Int
 
     def insert(b: Body): Quad
+
+    def customSum[T](items: Seq[T])(f: (T) => Float): Float = {
+      items.foldLeft(0f)(_ + f(_))
+    }
   }
 
   case class Empty(centerX: Float, centerY: Float, size: Float) extends Quad {
@@ -51,7 +54,7 @@ package object barneshut {
     def massY: Float = centerY
     def mass: Float = 0
     def total: Int = 0
-    def insert(b: Body): Quad = Leaf(centerX, centerY, size, Seq()).insert(b)
+    def insert(b: Body): Quad = Leaf(centerX, centerY, size, Seq(b))
   }
 
   case class Fork(
@@ -60,10 +63,10 @@ package object barneshut {
     val centerX: Float = nw.centerX + nw.size / 2
     val centerY: Float = nw.centerY + nw.size / 2
     val size: Float = nw.size * 2
-    val mass: Float = nw.mass + ne.mass + sw.mass + se.mass
-    val massX: Float = (nw.mass * nw.massX + ne.mass * ne.massX + sw.mass * sw.massX + se.mass * se.massX) / mass
-    val massY: Float = (nw.mass * nw.massY + ne.mass * ne.massY + sw.mass * sw.massY + se.mass * se.massY) / mass
-    val total: Int = nw.total + ne.total + sw.total + se.total
+    val mass: Float = customSum(Seq(nw, ne, sw, se))(_.mass)
+    val massX: Float = customSum(Seq(nw, ne, sw, se))(q => q.mass * q.massX) / mass
+    val massY: Float = customSum(Seq(nw, ne, sw, se))(q => q.mass * q.massY) / mass
+    val total: Int = customSum(Seq(nw, ne, sw, se))(_.total).toInt
 
     def insert(b: Body): Fork = {
       b.x match {
@@ -79,10 +82,27 @@ package object barneshut {
 
   case class Leaf(centerX: Float, centerY: Float, size: Float, bodies: Seq[Body])
   extends Quad {
-//    TODO: extract these routines to functions and reuse!
-    val (mass, massX, massY) = (bodies.foldLeft(0f)((m, body) => m + body.mass) : Float, ??? : Float, ??? : Float)
+    val (mass, massX, massY) = (
+      customSum(bodies)(_.mass),
+      customSum(bodies)(b => b.mass * b.x) / customSum(bodies)(_.mass),
+      customSum(bodies)(b => b.mass * b.y) / customSum(bodies)(_.mass)
+    )
+
     val total: Int = bodies.length
-    def insert(b: Body): Quad = ???
+    def insert(b: Body): Quad = {
+      if (size > minimumSize) {
+        (bodies :+ b).foldLeft(
+          Fork(
+            Empty(centerX - size / 4, centerY - size / 4, size / 2),
+            Empty(centerX + size / 4, centerY - size / 4, size / 2),
+            Empty(centerX - size / 4, centerY + size / 4, size / 2),
+            Empty(centerX + size / 4, centerY + size / 4, size / 2)
+          )
+        )((f, b) => f.insert(b))
+      } else {
+        Leaf(centerX, centerY, size, bodies :+ b)
+      }
+    }
   }
 
   def minimumSize = 0.00001f
