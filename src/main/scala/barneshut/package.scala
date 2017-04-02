@@ -64,8 +64,8 @@ package object barneshut {
     val centerY: Float = nw.centerY + nw.size / 2
     val size: Float = nw.size * 2
     val mass: Float = customSum(Seq(nw, ne, sw, se))(_.mass)
-    val massX: Float = customSum(Seq(nw, ne, sw, se))(q => q.mass * q.massX) / mass
-    val massY: Float = customSum(Seq(nw, ne, sw, se))(q => q.mass * q.massY) / mass
+    val massX: Float = if (mass == 0) centerX else customSum(Seq(nw, ne, sw, se))(q => q.mass * q.massX) / mass
+    val massY: Float = if (mass == 0) centerY else customSum(Seq(nw, ne, sw, se))(q => q.mass * q.massY) / mass
     val total: Int = customSum(Seq(nw, ne, sw, se))(_.total).toInt
 
     def insert(b: Body): Fork = {
@@ -181,16 +181,38 @@ package object barneshut {
     val matrix = new Array[ConcBuffer[Body]](sectorPrecision * sectorPrecision)
     for (i <- 0 until matrix.length) matrix(i) = new ConcBuffer
 
+    private def boundedBody(b: Body, boundaries: Boundaries): Body = {
+      val xB = b.x match {
+        case n if n < boundaries.minX => boundaries.minX
+        case n if n > boundaries.maxX => boundaries.maxX
+        case _ => b.x
+      }
+
+      val yB = b.y match {
+        case n if n < boundaries.minY => boundaries.minY
+        case n if n > boundaries.maxY => boundaries.maxY
+        case _ => b.y
+      }
+
+      new Body(b.mass, xB, yB, b.xspeed, b.yspeed)
+    }
+
     def +=(b: Body): SectorMatrix = {
-//      TODO: handle the case when Body lies outside of the Boundaries
-//      matrix(b.x + b.y * sectorSize)
+      val bounded = boundedBody(b, boundaries)
+      val matrixX = (math.abs(bounded.x - boundaries.minX) / sectorSize).toInt
+      val matrixY = (math.abs(bounded.y - boundaries.minY) / sectorSize).toInt
+      matrix(matrixX + matrixY * sectorPrecision) += b
       this
     }
 
     def apply(x: Int, y: Int) = matrix(y * sectorPrecision + x)
 
     def combine(that: SectorMatrix): SectorMatrix = {
-      ???
+      val resultMatrix = new SectorMatrix(boundaries, sectorPrecision)
+      for (x <- 0 until this.sectorPrecision; y <- 0 until this.sectorPrecision)
+        resultMatrix(x, y).combine(this(x, y)).combine(that(x, y))
+
+      resultMatrix
     }
 
     def toQuad(parallelism: Int): Quad = {

@@ -59,6 +59,21 @@ import FloatOps._
     assert(quad.total == 1, s"${quad.total} should be 1")
   }
 
+  test("Fork with 4 empty quadrants") {
+    val nw = Empty(17.5f, 27.5f, 5f)
+    val ne = Empty(22.5f, 27.5f, 5f)
+    val sw = Empty(17.5f, 32.5f, 5f)
+    val se = Empty(22.5f, 32.5f, 5f)
+    val quad = Fork(nw, ne, sw, se)
+
+    assert(quad.centerX == 20f, s"${quad.centerX} should be 20f")
+    assert(quad.centerY == 30f, s"${quad.centerY} should be 30f")
+    assert(quad.mass ~= 0, s"${quad.mass} should be 0")
+    assert(quad.massX ~= 20f, s"${quad.massX} should be 20f")
+    assert(quad.massY ~= 30f, s"${quad.massY} should be 30f")
+    assert(quad.total == 0, s"${quad.total} should be 0")
+  }
+
   test("Empty.insert(b) should return a Leaf with only that body") {
     val quad = Empty(51f, 46.3f, 5f)
     val b = new Body(3f, 54f, 46f, 0f, 0f)
@@ -112,6 +127,18 @@ import FloatOps._
     assert(res, s"Body not found in the right sector")
   }
 
+  test("'SectorMatrix.+=' should add a body at (-90,-80) to the correct bucket of a sector matrix of size 96") {
+    val body = new Body(5, -90, -80, 0.1f, 0.1f)
+    val boundaries = new Boundaries()
+    boundaries.minX = -97
+    boundaries.minY = -97
+    boundaries.maxX = -1
+    boundaries.maxY = -1
+    val sm = new SectorMatrix(boundaries, SECTOR_PRECISION)
+    sm += body
+    val res = sm(0, 1).size == 1 && sm(0, 1).find(_ == body).isDefined
+    assert(res, s"Body not found in the right sector")
+  }
 }
 
 object FloatOps {
